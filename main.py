@@ -5,7 +5,7 @@ import os
 import json
 
 app = Flask(__name__)
-CORS(app)  # Allow requests from the iPhone app
+CORS(app)
 
 MONDAY_API_URL = "https://api.monday.com/v2"
 MONDAY_TOKEN = os.environ.get("MONDAY_TOKEN", "")
@@ -53,24 +53,18 @@ def send_tasks():
 
     for item in data["items"]:
         try:
-            name        = item.get("name", "")
-            board_id    = item.get("boardId", 5018502514)
-            group_id    = item.get("groupId", "new_group35361__1")
-            status      = item.get("status", "עוד לא התחיל")
-            priority    = item.get("priority", "Medium")
-            date        = item.get("date", "")
-            person_id   = item.get("personId", 89872068)
-            placement   = item.get("placement", "new")
-            parent_id   = item.get("parentId")
-            notes       = item.get("notes", "")
+            name      = item.get("name", "")
+            board_id  = item.get("boardId", 5018502514)
+            group_id  = item.get("groupId", "new_group35361__1")
+            status    = item.get("status", "עוד לא התחיל")
+            priority  = item.get("priority", "Medium")
+            date      = item.get("date", "")
+            person_id = item.get("personId", 89872068)
+            placement = item.get("placement", "new")
+            parent_id = item.get("parentId")
+            notes     = item.get("notes", "")
 
-            # Map priority label to Monday column id
-            priority_map = {
-                "Critical ⚠️": "Critical ⚠️️",
-                "High": "High",
-                "Medium": "Medium",
-                "Low": "Low"
-            }
+            priority_map = {"Critical ⚠️": "Critical ⚠️️", "High": "High", "Medium": "Medium", "Low": "Low"}
             priority_label = priority_map.get(priority, "Medium")
 
             col_values = {
@@ -82,56 +76,29 @@ def send_tasks():
             col_values_str = json.dumps(col_values)
 
             if placement == "sub" and parent_id:
-                # Create as subitem
                 query = """
                 mutation ($parent_id: ID!, $name: String!) {
-                  create_subitem (parent_item_id: $parent_id, item_name: $name) {
-                    id
-                    name
-                  }
+                  create_subitem (parent_item_id: $parent_id, item_name: $name) { id name }
                 }
                 """
-                variables = {
-                    "parent_id": str(parent_id),
-                    "name": name
-                }
-                resp = monday_request(query, variables)
+                resp = monday_request(query, {"parent_id": str(parent_id), "name": name})
                 item_id = resp.get("data", {}).get("create_subitem", {}).get("id")
             else:
-                # Create as new item
                 query = """
                 mutation ($board_id: ID!, $group_id: String!, $name: String!, $col_vals: JSON!) {
-                  create_item (
-                    board_id: $board_id,
-                    group_id: $group_id,
-                    item_name: $name,
-                    column_values: $col_vals
-                  ) {
-                    id
-                    name
-                  }
+                  create_item (board_id: $board_id, group_id: $group_id, item_name: $name, column_values: $col_vals) { id name }
                 }
                 """
-                variables = {
-                    "board_id": str(board_id),
-                    "group_id": group_id,
-                    "name": name,
-                    "col_vals": col_values_str
-                }
-                resp = monday_request(query, variables)
-                item_data = resp.get("data", {}).get("create_item", {})
-                item_id = item_data.get("id")
+                resp = monday_request(query, {"board_id": str(board_id), "group_id": group_id, "name": name, "col_vals": col_values_str})
+                item_id = resp.get("data", {}).get("create_item", {}).get("id")
 
             if item_id:
-                # Add notes as update if provided
                 if notes:
-                    update_query = """
+                    monday_request("""
                     mutation ($item_id: ID!, $body: String!) {
                       create_update (item_id: $item_id, body: $body) { id }
                     }
-                    """
-                    monday_request(update_query, {"item_id": str(item_id), "body": notes})
-
+                    """, {"item_id": str(item_id), "body": notes})
                 results.append({"name": name, "id": item_id, "status": "created"})
             else:
                 errors.append({"name": name, "error": str(resp)})
@@ -139,12 +106,7 @@ def send_tasks():
         except Exception as e:
             errors.append({"name": item.get("name", "?"), "error": str(e)})
 
-    return jsonify({
-        "success": len(results),
-        "errors": len(errors),
-        "results": results,
-        "error_details": errors
-    })
+    return jsonify({"success": len(results), "errors": len(errors), "results": results, "error_details": errors})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
