@@ -1,9 +1,4 @@
-services:
-  - type: web
-    name: meetsync-server
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn main:app
-    envVars:
-      - key: MONDAY_TOKEN
-        sync: false
+flask==3.0.3
+flask-cors==4.0.1
+requests==2.32.3
+gunicorn==22.0.0
